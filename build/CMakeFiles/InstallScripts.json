@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/yiyu/cuda/cudnn/cudnn_test/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
