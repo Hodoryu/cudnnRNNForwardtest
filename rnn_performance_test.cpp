@@ -592,9 +592,9 @@ public:
                 if (num_gates == 1) { // RNN
                     gate_idx = 0;
                 } else if (num_gates == 3) { // GRU: Rzrh order  
-                    gate_idx = (layer_id == 4) ? 0 : (layer_id == 3) ? 1 : 5; // z, r, h
+                    gate_idx = (layer_id == 4) ? 0 : (layer_id == 3) ? 1 : 2; // z, r, h
                 } else if (num_gates == 4) { // LSTM: Riofc order
-                    gate_idx = (layer_id == 4) ? 0 : (layer_id == 7) ? 1 : (layer_id == 5) ? 2 : 6; // i, o, f, c
+                    gate_idx = (layer_id == 4) ? 0 : (layer_id == 7) ? 1 : (layer_id == 5) ? 2 : 3; // i, o, f, c
                 } else {
                     gate_idx = layer_id % num_gates;
                 }
@@ -628,9 +628,9 @@ public:
                 if (num_gates == 1) { // RNN
                     gate_idx = 0;
                 } else if (num_gates == 3) { // GRU
-                    gate_idx = (layer_id == 4) ? 0 : (layer_id == 3) ? 1 : 5;
+                    gate_idx = (layer_id == 4) ? 0 : (layer_id == 3) ? 1 : 2;
                 } else if (num_gates == 4) { // LSTM
-                    gate_idx = (layer_id == 4) ? 0 : (layer_id == 7) ? 1 : (layer_id == 5) ? 2 : 6;
+                    gate_idx = (layer_id == 4) ? 0 : (layer_id == 7) ? 1 : (layer_id == 5) ? 2 : 3;
                 } else {
                     gate_idx = layer_id % num_gates;
                 }
@@ -1296,8 +1296,8 @@ private:
         // Define operator types and their configurations
         std::vector<std::tuple<std::string, std::vector<std::string>, std::vector<std::string>>> operator_configs = {
             {"RNN", {"forward", "bidirectional"}, {"Tanh"}},  // Remove Relu due to CPU ONNX Runtime limitation
-            // {"GRU", {"forward", "bidirectional"}, {"Tanh"}},
-            // {"LSTM", {"forward", "bidirectional"}, {"Tanh"}}
+            {"GRU", {"forward", "bidirectional"}, {"Tanh"}},
+            {"LSTM", {"forward", "bidirectional"}, {"Tanh"}}
         };
 
         
@@ -1313,7 +1313,10 @@ private:
                             // For LSTM: initial_c_options = [False, True]
                             optional_combinations = {
                                 {false, false, true},
+                                {false, false, false},
                                 {true, false, false},
+                                {true, false, true},
+                                {true, true, true},
                                 {true, true, false}
                             };
                         } else if( op_type == "RNN") {
@@ -1326,7 +1329,10 @@ private:
                             };
                         }else if( op_type =="GRU") {
                            optional_combinations = {
-                                {false, false, false}
+                                {false, false, false},
+                                {true, false, false},
+                                {false, true, false},
+                                {true, true, false}
                             };
                         }
                         

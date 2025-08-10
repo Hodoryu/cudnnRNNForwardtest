@@ -18,6 +18,10 @@ endif()
 # Set CUDA toolkit root directory for find_package
 set(CUDA_TOOLKIT_ROOT_DIR ${CUDA_HOME})
 
+# Find Threads first (required by CUDA)
+find_package(Threads REQUIRED)
+
+# Find CUDA
 find_package(CUDA REQUIRED)
 
 # Find ONNX Runtime
@@ -77,6 +81,7 @@ target_link_libraries(rnn_performance_test
     ${CUDA_CUBLAS_LIBRARY}
     "${ONNXRUNTIME_LIBRARY_DIR}/libonnxruntime.so"
     cuda
+    Threads::Threads
 )
 
 # Set compile options
