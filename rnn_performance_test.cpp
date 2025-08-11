@@ -121,6 +121,9 @@ struct ComparisonData {
     std::string direction;
     std::string shape;
     std::string optional_inputs;
+    std::string cudnn_time;
+    std::string throughput;
+    std::string memory;
     std::map<std::string, std::vector<float>> output_values;
 };
 
@@ -142,6 +145,52 @@ std::string FormatTensorValues(const std::vector<float>& tensor) {
     return oss.str();
 }
 
+
+/*
+ * Helper functions to parse performance metrics from strings
+ */
+double ParseTimeMs(const std::string& time_str) {
+    try {
+        if (time_str.empty()) return 0.0;
+        size_t end_pos = time_str.find("ms");
+        if (end_pos == std::string::npos) return 0.0;
+        return std::stod(time_str.substr(0, end_pos));
+    } catch (const std::exception&) {
+        return 0.0;
+    }
+}
+
+double ParseThroughput(const std::string& throughput_str) {
+    try {
+        if (throughput_str.empty()) return 0.0;
+        size_t end_pos = throughput_str.find("samples/sec");
+        if (end_pos == std::string::npos) return 0.0;
+        return std::stod(throughput_str.substr(0, end_pos));
+    } catch (const std::exception&) {
+        return 0.0;
+    }
+}
+
+double ParseMemoryBytes(const std::string& memory_str) {
+    try {
+        if (memory_str.empty()) return 0.0;
+        size_t end_pos = memory_str.find("bytes");
+        if (end_pos == std::string::npos) return 0.0;
+        return std::stod(memory_str.substr(0, end_pos));
+    } catch (const std::exception&) {
+        return 0.0;
+    }
+}
+
+/*
+ * Structure to store performance comparison results
+ */
+struct PerformanceComparison {
+    double time_ratio;
+    double throughput_ratio;
+    double memory_ratio;
+    bool has_performance_data;
+};
 
 /*
  * Comparison data manager for JSON file validation
@@ -188,6 +237,15 @@ public:
                 }
                 if (result.contains("optional_inputs")) {
                     data.optional_inputs = result["optional_inputs"].get<std::string>();
+                }
+                if (result.contains("cudnn_time")) {
+                    data.cudnn_time = result["cudnn_time"].get<std::string>();
+                }
+                if (result.contains("throughput")) {
+                    data.throughput = result["throughput"].get<std::string>();
+                }
+                if (result.contains("memory")) {
+                    data.memory = result["memory"].get<std::string>();
                 }
 
                 if (result.contains("outputs") && result["outputs"].is_object()) {
@@ -267,6 +325,44 @@ public:
 
     bool IsLoaded() const {
         return loaded_;
+    }
+
+    PerformanceComparison CalculatePerformanceComparison(const ComparisonData* comparison_data, 
+                                                      double current_cudnn_time_ms, 
+                                                      double current_throughput_samples_per_sec, 
+                                                      double current_memory_usage_bytes) const {
+        PerformanceComparison comp;
+        comp.has_performance_data = false;
+        comp.time_ratio = 1.0;
+        comp.throughput_ratio = 1.0;
+        comp.memory_ratio = 1.0;
+
+        if (!comparison_data) {
+            return comp;
+        }
+
+        // Parse comparison data performance metrics
+        double json_time_ms = ParseTimeMs(comparison_data->cudnn_time);
+        double json_throughput = ParseThroughput(comparison_data->throughput);
+        double json_memory = ParseMemoryBytes(comparison_data->memory);
+
+        // Calculate ratios if we have valid data
+        if (json_time_ms > 0.0 && current_cudnn_time_ms > 0.0) {
+            comp.time_ratio = json_time_ms / current_cudnn_time_ms;
+            comp.has_performance_data = true;
+        }
+
+        if (json_throughput > 0.0 && current_throughput_samples_per_sec > 0.0) {
+            comp.throughput_ratio = current_throughput_samples_per_sec / json_throughput;
+            comp.has_performance_data = true;
+        }
+
+        if (json_memory > 0.0 && current_memory_usage_bytes > 0.0) {
+            comp.memory_ratio = json_memory / current_memory_usage_bytes;
+            comp.has_performance_data = true;
+        }
+
+        return comp;
     }
 };
 
@@ -1749,6 +1845,26 @@ public:
                     
                     comparison_passed = (comparison_similarity >= SIMILARITY_THRESHOLD);
                     
+                    // Calculate performance comparison
+                    PerformanceComparison perf_comp = comparison_manager_.CalculatePerformanceComparison(
+                        comparison_data, metrics.cudnn_time_ms, metrics.throughput_samples_per_sec, metrics.memory_usage_bytes);
+
+                    // Output performance comparison results
+                    if (perf_comp.has_performance_data) {
+                        std::cout << "Performance Comparison:" << std::endl;
+                        //if (perf_comp.time_ratio != 1.0) {
+                        std::cout << " Cudnn Exec Time Ratio: " << std::fixed << std::setprecision(3) << perf_comp.time_ratio << "x" << std::endl;
+                        //}
+                        //if (perf_comp.throughput_ratio != 1.0) {
+                        std::cout << " Cudnn API Throughput Ratio : " << std::fixed << std::setprecision(3) << perf_comp.throughput_ratio << "x" << std::endl;
+                        //}
+                        //if (perf_comp.memory_ratio != 1.0) {
+                        std::cout << " Cudnn API Occupy Memory Ratio: " << std::fixed << std::setprecision(3) << perf_comp.memory_ratio << "x" << std::endl;
+                        //}
+                    } else {
+                        std::cout << "  Warning: No performance data available for comparison" << std::endl;
+                    }
+
                     // Output comparison results
                     std::cout << "Compare Cosine Similarity With Nvidia A100 Results From Localfile. Cosine Similarity Value:" << comparison_similarity << std::endl;
                     std::string result = comparison_passed ? "PASS" : "FAIL";
