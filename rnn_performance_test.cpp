@@ -503,6 +503,11 @@ public:
         cudnnRNNDataDescriptor_t x_data_desc;
         CUDNN_CHECK(cudnnCreateRNNDataDescriptor(&x_data_desc));
 
+            //         CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_UNPACKED — 时间优先 Unpacked（Time-major padded）。
+
+            // CUDNN_RNN_DATA_LAYOUT_BATCH_MAJOR_UNPACKED — 批次优先 Unpacked（Batch-major padded）。
+
+            // CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_PACKED — Packed 格式（按序列长度打包）。
         cudnnRNNDataLayout_t layout = CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_UNPACKED;
         std::vector<int> seq_lengths_array(batch_size, seq_length);
         float padding_fill = 0.0f;
@@ -1290,14 +1295,16 @@ private:
             {4, 2, 8, 16, "Test"},
             {8, 4, 16, 32, "Test"},
             {16, 8, 32, 64, "Test"},
-            {32, 16, 64, 128, "Test"}
+            {32, 16, 64, 128, "Test"},
+            {64, 32, 128, 256, "Test"}
+            //{128, 64, 256, 512, "Test"}
         };
 
         // Define operator types and their configurations
         std::vector<std::tuple<std::string, std::vector<std::string>, std::vector<std::string>>> operator_configs = {
-            {"RNN", {"forward", "bidirectional"}, {"Tanh"}},  // Remove Relu due to CPU ONNX Runtime limitation
-            {"GRU", {"forward", "bidirectional"}, {"Tanh"}},
-            {"LSTM", {"forward", "bidirectional"}, {"Tanh"}}
+            {"RNN", {"forward", "bidirectional", "reverse"}, {"Tanh","Relu"}},  // Remove Relu due to CPU ONNX Runtime limitation
+            {"GRU", {"forward", "bidirectional", "reverse"}, {"Tanh"}},
+            {"LSTM", {"forward", "bidirectional", "reverse"}, {"Tanh"}}
         };
 
         
@@ -1437,7 +1444,17 @@ public:
             for (size_t i = 0; i < B_size; i++) B[i] = distribution(generator);
 
             // Optional inputs
-            std::vector<int> sequence_lens(config.batch_size, config.seq_length);
+            std::uniform_int_distribution<int> distribution_seqs(1, config.seq_length);
+            std::vector<int> sequence_lens;
+            sequence_lens.reserve(config.batch_size);
+
+            // 生成 batch_size - 1 个随机数
+            for (int i = 0; i < config.batch_size - 1; ++i) {
+                sequence_lens.push_back(distribution_seqs(generator));
+            }
+            // 最后一个序列长度为 seq_length
+            sequence_lens.push_back(config.seq_length);
+            //std::vector<int> sequence_lens(config.batch_size, config.seq_length);
             std::vector<float> initial_h(Y_h_size, 0.0f);
             std::vector<float> initial_c(Y_c_size, 0.0f);
 
